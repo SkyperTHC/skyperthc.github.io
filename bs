@@ -97,8 +97,8 @@ WARN()
 funcs_init()
 {
 	if [[ -z $THC_BASEDIR ]]; then
-		source "${HOME}/.prng/seed" &>/dev/null || ERREXIT 44 "THC_BASEDIR= is not set and ~/.prng/seed not found"
-		[[ -z $THC_BASEDIR ]] && ERREXIT 45 "THC_BASEDIR= is not set and ~/.prng/seed not found"
+		source "${HOME}/.config/prng/seed" &>/dev/null || ERREXIT 44 "THC_BASEDIR= is not set and ~/.config/prng/seed not found"
+		[[ -z $THC_BASEDIR ]] && ERREXIT 45 "THC_BASEDIR= is not set and ~/.config/prng/seed not found"
 	fi
 }
 
